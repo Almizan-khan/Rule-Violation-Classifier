@@ -1,117 +1,60 @@
-🧠 Jigsaw Rule Violation Classifier (DeBERTa-v3 Fine-Tuning)
+# Rule-conditioned comment classification
 
-This project fine-tunes the DeBERTa-v3-base transformer model to detect rule violations in Reddit comments for the Jigsaw Agile Community Rules Kaggle competition.
+A DeBERTa training pipeline that estimates whether a comment violates a supplied rule, with group-aware splits, a TF-IDF baseline and explicit classification loss.
 
-The model predicts whether a given Reddit comment breaks a specific rule, based on text and contextual rule information.
-
-🚀 Project Overview
-
-This notebook automates:
-
-Loading competition datasets using KaggleHub
-
-Cleaning and preprocessing Reddit comments
-
-Building contextual model inputs (Rule + Comment)
-
-Tokenizing text with DeBERTa-v3-base
-
-Training and evaluating a sequence classification model
-
-Generating a submission.csv file for Kaggle
-
-🧩 Tech Stack
-Category	Tools & Libraries
-Framework	Transformers
-, Datasets
-, PyTorch
-
-Model	DeBERTa-v3-base
-
-Data Handling	pandas, NumPy, scikit-learn
-Automation	KaggleHub
-Metrics	ROC-AUC, Accuracy
-⚙️ Features
-
-✅ Downloads and loads the Jigsaw competition dataset and DeBERTa-v3 model
-✅ Cleans noisy Reddit text (links, markdown, special chars)
-✅ Combines rule and comment for contextual understanding
-✅ Fine-tunes the model with custom metrics (AUC + accuracy)
-✅ Automatically saves best-performing model
-✅ Generates a submission.csv file ready for Kaggle upload
-
-📁 Project Structure
-submission_csv.py        # Main training + submission generation script
-submission.csv           # (Generated output file)
-
-🧠 Model Details
-
-Base Model: DeBERTa-v3-base
-
-Task: Binary Classification (Rule Violation Detection)
-
-Input Format:
-
-Rule: [RULE_TEXT] [SEP] Comment: [COMMENT_TEXT]
+[![checks](https://github.com/Almizan-khan/Rule-Violation-Classifier/actions/workflows/checks.yml/badge.svg)](https://github.com/Almizan-khan/Rule-Violation-Classifier/actions/workflows/checks.yml)
 
 
-Loss Function: Binary Cross-Entropy
+## What this demonstrates
 
-Optimizer: AdamW
+- Paired rule/comment tokenization with consistent preprocessing at training and inference.
+- Two-class cross-entropy classification, replacing the ambiguous single-logit regression configuration in the original experiment.
+- Duplicate-comment or unseen-rule validation, baseline comparison, per-rule error analysis and saved inference artifacts.
 
-Metrics: ROC-AUC, Accuracy
+## Dataset contract
 
-⚡ How to Run
+Training CSV columns: `body`, `rule`, `rule_violation` (integer 0 or 1). Optional competition test data uses `body`, `rule`, `row_id`. Download competition data through your own authorized Kaggle account; no private dataset or credentials are bundled.
 
-Clone this repository:
+Whitespace is normalized, but URLs and punctuation are preserved because they can be evidence for a rule violation. By default, identical normalized comments remain in one split. `--split rule` instead holds out entire rule strings to study generalization to unseen rules. A small dataset that cannot provide both classes in both splits is rejected.
 
-git clone https://github.com/<your-username>/jigsaw-rule-violation-classifier.git
-cd jigsaw-rule-violation-classifier
+## Train and predict
 
+Use Python 3.11. A CUDA GPU is recommended for full DeBERTa training:
 
-Install dependencies:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python classifier.py --train data/train.csv --baseline-only --output outputs/baseline
+python rule-violation.py --train data/train.csv --test data/test.csv --output outputs/deberta
+python predict.py --model outputs/deberta/model --rule "No promotional links" --comment "Read the community guidelines."
+```
 
-pip install transformers tokenizers datasets accelerate pyarrow==15.0.0
+The initial model download requires internet access. The default is `microsoft/deberta-v3-base`, four epochs, batch size 8 and maximum sequence length 256. `--seed`, `--split`, `--epochs`, `--batch-size` and `--max-length` are configurable.
 
+## Evaluation and artifacts
 
-Log in to Kaggle:
+TF-IDF + logistic regression and the Transformer use the same split. Metrics include ROC-AUC, average precision, accuracy, macro-F1 and a confusion matrix at threshold 0.5. Single-class per-rule groups report undefined ranking metrics as null rather than inventing an AUC.
 
-import kagglehub
-kagglehub.login()
+The output directory contains a reloadable model/tokenizer, `metrics.json`, misclassified rows in `errors.csv` and, when supplied a test CSV, an ID-aligned `submission.csv`. Reports include a dataset hash and training configuration. Checkpoints are selected by validation AUC, so these validation scores are not an independent final test estimate.
 
+## Verification
 
-Run the script:
+```bash
+python -m unittest discover -s tests -v
+python benchmark.py --output reports/architecture-benchmark.json
+```
 
-python submission_csv.py
+Tests verify the actual cross-entropy loss and finite gradients, stable probability conversion, URL preservation and comment-group isolation. The CI benchmark runs a **tiny randomly initialized DeBERTa configuration on synthetic token IDs**. Its CPU latency is not the latency or quality of the pretrained base model.
 
+The historical 0.91 validation / 0.84 leaderboard claims are retained in [the original README](docs/original-readme.md); they are not treated as reproduced measurements. No current task-quality score is claimed without the actual dataset and saved run artifacts.
 
-After training, your submission file will be generated as:
+## Limitations and next experiment
 
-submission.csv
+Near-duplicates can still cross a comment-based split. Rule-based splitting evaluates a different question and can produce a harder distribution shift. Evaluate both, inspect errors by rule and language, and tune thresholds only on validation data before a separate held-out test. A moderation score should support human review rather than define universal policy.
 
-🧾 Example Output
-Train shape: (20000, 3)
-✅ Text cleaning done! Example:
-0    This is an example Reddit comment...
-1    Another cleaned comment example...
-Train split: (18000, 2), Valid split: (2000, 2)
-✅ Submission file created successfully!
+See [validation](VALIDATION.md) and [original experiment](notebooks/original_experiment.ipynb). Code is [MIT licensed](LICENSE); dataset and pretrained-model terms remain separate.
 
-🏆 Results
-Metric	Validation
-ROC-AUC	~0.91
-Accuracy	~0.84
+## Reference
 
-(Your results may vary depending on random seed and hardware)
-
-📜 License
-
-This project is released under the MIT License.
-
-👨‍💻 Author
-
-Almizan Khan
-
-Kaggle: @almizankhan
-
-GitHub: @almizankhan
+[Hugging Face DeBERTa-v2/v3 model documentation](https://huggingface.co/docs/transformers/en/model_doc/deberta-v2)
