@@ -49,6 +49,10 @@ Tests verify the actual cross-entropy loss and finite gradients, stable probabil
 
 The historical 0.91 validation / 0.84 leaderboard claims are retained in [the original README](docs/original-readme.md); they are not treated as reproduced measurements. No current task-quality score is claimed without the actual dataset and saved run artifacts.
 
+## Recorded architecture check
+
+[The executed CI report](reports/architecture-latency.json) records six passing tests and a median 1.03 ms / p95 1.34 ms forward pass for the **17,922-parameter random test model**, batch size 8 and sequence length 64. This is an implementation check, not a benchmark of the pretrained DeBERTa-v3-base model or a moderation-quality result.
+
 ## Limitations and next experiment
 
 Near-duplicates can still cross a comment-based split. Rule-based splitting evaluates a different question and can produce a harder distribution shift. Evaluate both, inspect errors by rule and language, and tune thresholds only on validation data before a separate held-out test. A moderation score should support human review rather than define universal policy.
